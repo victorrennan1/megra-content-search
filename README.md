@@ -6,7 +6,6 @@ You're getting the whole thing:
 
 | File | What it is |
 |---|---|
-| `00-README.md` | This guide — start here |
 | `scrape.py` | The scraper — pulls competitor reels + transcribes them (the only code you run) |
 | `ANALYZE.md` | The analysis playbook Claude follows to score + break down every reel |
 | `DASHBOARD-SPEC.md` | The spec Claude follows to build your dashboard.html |
