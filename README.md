@@ -6,7 +6,8 @@ You're getting the whole thing:
 
 | # | File | What it is |
 |---|---|---|
-| 1 | `competitor-accounts.md` | Your competitor list — a template to fill in |
+| 1 | `setup.py` | The setup screen — enter your niche and competitors in a browser form |
+| 1b | `competitor-accounts.md` | Your competitor list — what the setup screen writes (editable by hand too) |
 | 2 | `scrape.py` | The scraper — pulls competitor reels + transcribes them (the only code you run) |
 | 3 | `ANALYZE.md` | The analysis playbook Claude follows to score + break down every reel |
 | 4 | `DASHBOARD-SPEC.md` | The spec Claude follows to build your dashboard.html |
@@ -49,9 +50,17 @@ export ELEVENLABS_API_KEY="your-elevenlabs-key"
 
 ## Manual setup (if you'd rather drive)
 
-1. Fill in `competitor-accounts.md` — one row per competitor, `Active = yes` for the ones to track.
-2. Open `ANALYZE.md` and replace the **YOUR NICHE** line at the top with what you actually make content about.
-3. Run the scraper (needs Python 3.10+ — `pip install -r requirements.txt`):
+Needs Python 3.10+ — `pip install -r requirements.txt`.
+
+1. Run the setup screen and fill in the form (niche, competitors, and optionally your two keys — they go in a gitignored `.env` so you stop re-exporting them):
+
+```bash
+python3 setup.py
+```
+
+It opens `http://127.0.0.1:8765`, loopback only, and writes `ANALYZE.md` + `competitor-accounts.md` for you. Ctrl-C when you're done. Prefer editing markdown by hand? Fill in `competitor-accounts.md` (one row per competitor, `Active = yes` to track) and replace the **YOUR NICHE** line at the top of `ANALYZE.md` — the setup screen is a convenience, not a requirement.
+
+2. Run the scraper:
 
 ```bash
 python3 scrape.py               # 3 latest reels per active account
@@ -59,9 +68,9 @@ python3 scrape.py --limit 5     # or 5 per account
 python3 scrape.py --balance     # check your Apify spend/credit first
 ```
 
-4. Tell Claude: **"Process the latest batch in staging/ following ANALYZE.md."** It scores every reel for relevance to your niche, splits the transcript into Hook / Beats / CTA, and writes one note per keeper into `notes/`.
-5. Tell Claude: **"Build the dashboard following DASHBOARD-SPEC.md."** You get a `dashboard.html` — open it in your browser.
-6. Repeat whenever you want fresh data: scrape → "process the batch" → "rebuild the dashboard". The scraper remembers what it's already seen, so a reel you've already staged is never downloaded or transcribed twice. Apify still charges for the listing itself each run — keep `--limit` low and that stays cheap.
+3. Tell Claude: **"Process the latest batch in staging/ following ANALYZE.md."** It scores every reel for relevance to your niche, splits the transcript into Hook / Beats / CTA, and writes one note per keeper into `notes/`.
+4. Tell Claude: **"Build the dashboard following DASHBOARD-SPEC.md."** You get a `dashboard.html` — open it in your browser.
+5. Repeat whenever you want fresh data: scrape → "process the batch" → "rebuild the dashboard". The scraper remembers what it's already seen, so a reel you've already staged is never downloaded or transcribed twice. Apify still charges for the listing itself each run — keep `--limit` low and that stays cheap.
 
 ## The weekly rhythm
 

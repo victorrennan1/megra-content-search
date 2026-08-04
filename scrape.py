@@ -38,10 +38,25 @@ except ImportError:
 UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
 
 
+def load_dotenv():
+    """Read the gitignored .env that setup.py writes. A real environment
+    variable always wins, so an export still overrides the saved key."""
+    env_file = ROOT / ".env"
+    if not env_file.exists():
+        return
+    for line in env_file.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        name, sep, val = line.partition("=")
+        if sep and not os.environ.get(name.strip()):
+            os.environ[name.strip()] = val.strip().strip('"').strip("'")
+
+
 def env_key(name: str, hint: str) -> str:
     val = os.environ.get(name, "").strip()
     if not val:
-        sys.exit(f"{name} not set — {hint}")
+        sys.exit(f"{name} not set — {hint} (or run: python3 setup.py)")
     return val
 
 
@@ -237,6 +252,7 @@ def main():
     ap.add_argument("--balance", action="store_true", help="print Apify usage and exit")
     args = ap.parse_args()
 
+    load_dotenv()
     token = env_key("APIFY_TOKEN", "get it at apify.com -> Settings -> Integrations")
     if args.balance:
         print_balance(token)
