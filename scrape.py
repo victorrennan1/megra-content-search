@@ -28,6 +28,7 @@ LEDGER = ROOT / "ledger.json"       # dedup memory — you only pay for NEW reel
 STAGING = ROOT / "staging"
 VIDEOS = STAGING / "videos"
 APIFY_ACTOR = "xMc5Ga1oCONPmWJIa"   # Apify's Instagram Reel Scraper actor
+APIFY_API = "https://api.apify.com/v2"
 
 try:
     import requests
@@ -94,9 +95,15 @@ def shortcode_from_url(url: str) -> str:
 
 
 def load_ledger() -> dict:
+    """Always returns all three buckets — the ledger is hand-edited by Claude
+    during analysis, so a missing key must not crash the next scrape."""
+    ledger = {"processed": [], "low_score": [], "scraped": []}
     if LEDGER.exists():
-        return json.loads(LEDGER.read_text())
-    return {"processed": [], "low_score": [], "scraped": []}
+        stored = json.loads(LEDGER.read_text())
+        for key in ledger:
+            if isinstance(stored.get(key), list):
+                ledger[key] = stored[key]
+    return ledger
 
 
 def existing_shortcodes() -> set[str]:
@@ -109,15 +116,47 @@ def existing_shortcodes() -> set[str]:
     return codes
 
 
-def run_apify(token: str, usernames: list[str], per_account: int) -> list[dict]:
-    url = f"https://api.apify.com/v2/acts/{APIFY_ACTOR}/run-sync-get-dataset-items"
+def run_apify(token: str, usernames: list[str], per_account: int, max_wait: int = 900) -> list[dict]:
+    """Start the actor, poll until it finishes, then read its dataset.
+
+    Deliberately NOT the run-sync endpoint: a client-side timeout there leaves
+    the run going on Apify's side, and retrying starts a SECOND paid run — you
+    get billed twice for the same batch. Starting the run once and polling means
+    a network blip only costs another poll. The start call is the one thing we
+    never retry, for the same reason.
+    """
+    headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
     body = {"resultsLimit": per_account, "username": usernames}
 
-    def _call():
-        r = requests.post(url, json=body, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}, timeout=600)
-        r.raise_for_status()
-        return r.json()
-    return with_retry(_call, what="Apify run")
+    r = requests.post(f"{APIFY_API}/acts/{APIFY_ACTOR}/runs", json=body, headers=headers, timeout=60)
+    r.raise_for_status()
+    run = r.json()["data"]
+    run_id = run["id"]
+    print(f"  run {run_id} started — https://console.apify.com/actors/runs/{run_id}")
+
+    deadline = time.time() + max_wait
+    while True:
+        def _status():
+            s = requests.get(f"{APIFY_API}/actor-runs/{run_id}", headers=headers, timeout=60)
+            s.raise_for_status()
+            return s.json()["data"]
+        run = with_retry(_status, what="Apify status")
+        status = run["status"]
+        if status == "SUCCEEDED":
+            break
+        if status in ("FAILED", "ABORTED", "TIMED-OUT"):
+            sys.exit(f"Apify run ended as {status} — see the run log linked above")
+        if time.time() > deadline:
+            sys.exit(f"Apify run still {status} after {max_wait}s — it may still finish; "
+                     f"check the run log above rather than re-running (that would bill you again)")
+        time.sleep(5)
+
+    def _items():
+        s = requests.get(f"{APIFY_API}/datasets/{run['defaultDatasetId']}/items",
+                         params={"clean": "true", "format": "json"}, headers=headers, timeout=120)
+        s.raise_for_status()
+        return s.json()
+    return with_retry(_items, what="Apify dataset")
 
 
 def print_balance(token: str):
@@ -149,7 +188,9 @@ def download_video(video_url: str, dest: Path, attempts: int = 3, base_delay: fl
         try:
             with requests.get(video_url, headers={"User-Agent": UA}, stream=True, timeout=120) as r:
                 r.raise_for_status()
-                dest.write_bytes(r.content)
+                with open(dest, "wb") as fh:
+                    for chunk in r.iter_content(chunk_size=1 << 16):
+                        fh.write(chunk)
             if dest.stat().st_size > 1000:
                 return True
             raise ValueError(f"file too small ({dest.stat().st_size} bytes)")
@@ -222,7 +263,9 @@ def main():
         if new >= args.cap:
             break
         url = field(it, "url", "postUrl", default="")
-        video_url = field(it, "videoUrl", "video_url", "displayUrl")
+        # No displayUrl fallback: that's the thumbnail. It would download as a
+        # JPEG named .mp4, pass the size check, and burn a Scribe call for nothing.
+        video_url = field(it, "videoUrl", "video_url")
         code = shortcode_from_url(url)
         if not video_url or code in seen:
             continue

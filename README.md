@@ -4,12 +4,12 @@ This is the system from the reel: every morning it can rebuild a dashboard of yo
 
 You're getting the whole thing:
 
-| File | What it is |
-|---|---|
-| `scrape.py` | The scraper — pulls competitor reels + transcribes them (the only code you run) |
-| `ANALYZE.md` | The analysis playbook Claude follows to score + break down every reel |
-| `DASHBOARD-SPEC.md` | The spec Claude follows to build your dashboard.html |
-| `competitor-accounts.md` | Your competitor list — a template to fill in |
+| # | File | What it is |
+|---|---|---|
+| 1 | `competitor-accounts.md` | Your competitor list — a template to fill in |
+| 2 | `scrape.py` | The scraper — pulls competitor reels + transcribes them (the only code you run) |
+| 3 | `ANALYZE.md` | The analysis playbook Claude follows to score + break down every reel |
+| 4 | `DASHBOARD-SPEC.md` | The spec Claude follows to build your dashboard.html |
 
 **You don't need to be able to code.** The fastest path is to hand this whole pack to Claude and let it do the setup.
 
@@ -21,7 +21,7 @@ You're getting the whole thing:
 2. Make a folder (e.g. `competitor-dashboard/`) and save all five files into it.
 3. Open Claude Code in that folder and say:
 
-> Read 00-README.md and set this competitor dashboard up for me. My niche is **[what you make content about, and for whom]**. My competitors are **[3–7 Instagram handles]**. Walk me through getting the two API keys, then do the rest yourself.
+> Read README.md and set this competitor dashboard up for me. My niche is **[what you make content about, and for whom]**. My competitors are **[3–7 Instagram handles]**. Walk me through getting the two API keys, then do the rest yourself.
 
 Claude will take it from there — including editing the niche line in `ANALYZE.md` and filling `competitor-accounts.md` for you.
 
@@ -29,7 +29,7 @@ Claude will take it from there — including editing the niche line in `ANALYZE.
 
 ## What it costs to run
 
-- **Apify** (does the Instagram scraping) — this is the main cost. A few dollars a month at 3 reels per account, a handful of accounts, run a few times a week. New accounts get free monthly credit, which covers a lot of it.
+- **Apify** (does the Instagram scraping) — this is the main cost, and you pay it per run based on `--limit` × accounts, whether or not the reels turn out to be new. A few dollars a month at 3 reels per account, a handful of accounts, run a few times a week. New accounts get free monthly credit, which covers a lot of it. Check yours any time with `python3 scrape.py --balance`.
 - **ElevenLabs Scribe** (transcription) — pennies per batch. Free tier usually covers it.
 - **The analysis is free** — Claude does the scoring, breakdowns, and dashboard in your normal session. No OpenAI key, no extra subscription.
 
@@ -51,7 +51,7 @@ export ELEVENLABS_API_KEY="your-elevenlabs-key"
 
 1. Fill in `competitor-accounts.md` — one row per competitor, `Active = yes` for the ones to track.
 2. Open `ANALYZE.md` and replace the **YOUR NICHE** line at the top with what you actually make content about.
-3. Run the scraper (needs Python 3.10+ and the `requests` package — `pip install requests`):
+3. Run the scraper (needs Python 3.10+ — `pip install -r requirements.txt`):
 
 ```bash
 python3 scrape.py               # 3 latest reels per active account
@@ -61,7 +61,7 @@ python3 scrape.py --balance     # check your Apify spend/credit first
 
 4. Tell Claude: **"Process the latest batch in staging/ following ANALYZE.md."** It scores every reel for relevance to your niche, splits the transcript into Hook / Beats / CTA, and writes one note per keeper into `notes/`.
 5. Tell Claude: **"Build the dashboard following DASHBOARD-SPEC.md."** You get a `dashboard.html` — open it in your browser.
-6. Repeat whenever you want fresh data: scrape → "process the batch" → "rebuild the dashboard". The scraper remembers what it's already seen, so you only ever pay for new reels.
+6. Repeat whenever you want fresh data: scrape → "process the batch" → "rebuild the dashboard". The scraper remembers what it's already seen, so a reel you've already staged is never downloaded or transcribed twice. Apify still charges for the listing itself each run — keep `--limit` low and that stays cheap.
 
 ## The weekly rhythm
 
