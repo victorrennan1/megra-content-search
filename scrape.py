@@ -78,9 +78,14 @@ def with_retry(fn, *, what: str, attempts: int = 3, base_delay: float = 2.0):
 
 
 def write_json(path: Path, data, **dump_kw):
-    """Atomic write — a crash mid-write can't corrupt the ledger/batch."""
+    """Atomic write — a crash mid-write can't corrupt the ledger/batch.
+
+    Always UTF-8: we dump with ensure_ascii=False, and write_text() would
+    otherwise use the platform's locale encoding (cp1252 on Windows), which
+    mangles any non-English transcript and makes the file unreadable later.
+    """
     tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(json.dumps(data, **dump_kw))
+    tmp.write_text(json.dumps(data, **dump_kw), encoding="utf-8")
     tmp.replace(path)
 
 
@@ -88,7 +93,7 @@ def active_accounts() -> list[str]:
     if not ACCOUNTS_MD.exists():
         sys.exit(f"{ACCOUNTS_MD.name} not found — fill in the template first")
     users = []
-    for line in ACCOUNTS_MD.read_text().splitlines():
+    for line in ACCOUNTS_MD.read_text(encoding="utf-8").splitlines():
         if not line.strip().startswith("|"):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
@@ -114,7 +119,7 @@ def load_ledger() -> dict:
     during analysis, so a missing key must not crash the next scrape."""
     ledger = {"processed": [], "low_score": [], "scraped": []}
     if LEDGER.exists():
-        stored = json.loads(LEDGER.read_text())
+        stored = json.loads(LEDGER.read_text(encoding="utf-8"))
         for key in ledger:
             if isinstance(stored.get(key), list):
                 ledger[key] = stored[key]
@@ -125,7 +130,7 @@ def existing_shortcodes() -> set[str]:
     codes = set()
     if NOTES_DIR.exists():
         for f in NOTES_DIR.rglob("SCRAPED-*.md"):
-            m = re.search(r"source_url:\s*(\S+)", f.read_text())
+            m = re.search(r"source_url:\s*(\S+)", f.read_text(encoding="utf-8"))
             if m:
                 codes.add(shortcode_from_url(m.group(1)))
     return codes
